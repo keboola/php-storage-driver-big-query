@@ -7,6 +7,8 @@ namespace Keboola\StorageDriver\BigQuery\Handler\Bucket\Drop;
 use Google\Protobuf\Internal\Message;
 use Keboola\StorageDriver\BigQuery\GCPClientManager;
 use Keboola\StorageDriver\BigQuery\Handler\BaseHandler;
+use Keboola\StorageDriver\BigQuery\Handler\Helpers\DecodeErrorMessage;
+use Keboola\StorageDriver\BigQuery\Handler\Table\ObjectCannotBeDeletedException;
 use Keboola\StorageDriver\Command\Bucket\RevokeBucketAccessFromReadOnlyRoleCommand;
 use Keboola\StorageDriver\Credentials\GenericBackendCredentials;
 use Throwable;
@@ -46,7 +48,14 @@ final class RevokeBucketAccessFromReadOnlyRoleHandler extends BaseHandler
         // This information is stored in the connection so we just delete the dataset
         $dataset = $bigQueryClient->dataset($command->getBucketObjectName());
 
-        $dataset->delete();
+        try {
+            $dataset->delete();
+        } catch (Throwable $e) {
+            throw new ObjectCannotBeDeletedException(
+                message: DecodeErrorMessage::getDirectErrorMessage($e),
+                previous: $e,
+            );
+        }
 
         return null;
     }
