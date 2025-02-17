@@ -7,6 +7,7 @@ namespace Keboola\StorageDriver\BigQuery\Handler\Bucket\Create;
 use Google\ApiCore\ApiException;
 use Google\Cloud\BigQuery\AnalyticsHub\V1\DestinationDataset;
 use Google\Cloud\BigQuery\AnalyticsHub\V1\DestinationDatasetReference;
+use Google\Cloud\Iam\V1\Binding;
 use Google\Protobuf\Internal\Message;
 use Google\Rpc\Code;
 use Keboola\StorageDriver\BigQuery\CredentialsHelper;
@@ -97,6 +98,26 @@ final class GrantBucketAccessToReadOnlyRoleHandler extends BaseHandler
             'location' => $credentialsMeta->getRegion(),
         ]);
 
+//        $exchangerName = $this->clientManager->getAnalyticHubClient($credentials)
+//            ->getDataExchange(
+//                $dataExchangerId,
+//                [
+//                    'project' => $projectId,
+//                    'location' => $location,
+//                ],
+//            );
+
+        $formattedName = $analyticHubClient->dataExchangeName($projectId, $location, $dataExchangerId);
+        $mainCredentials = CredentialsHelper::getCredentialsArray($credentials);
+        $iamExchangerPolicy = $analyticHubClient->getIamPolicy($formattedName);
+        $binding = $iamExchangerPolicy->getBindings();
+        $binding[] = new Binding([
+            'role' => 'roles/analyticshub.subscriber',
+            'members' => ['serviceAccount:' . $mainCredentials['client_email']],
+        ]);
+
+        $iamExchangerPolicy->setBindings($binding);
+        $analyticHubClient->setIamPolicy($formattedName, $iamExchangerPolicy);
         try {
             // 2. Then we just need to subscribe to the listing that the user created
             // according to the instruction before he called the bucket registration.
